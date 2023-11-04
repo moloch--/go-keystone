@@ -111,5 +111,11 @@ func NewKeystone(ctx context.Context, arch Architecture, mode Mode) (*Keystone, 
 		ks_strerror:       mod.ExportedFunction("ks_strerror"),
 	}
 
+	const pointerSize = 4
+	_, err = keystone.ks_open.Call(ctx, uint64(keystone.arch), uint64(keystone.mode), pointerSize)
+	if err != nil {
+		return nil, err
+	}
+
 	return keystone, nil
 }

@@ -7,5 +7,8 @@ import (
 )
 
 func main() {
-	keystone.NewKeystone(context.Background(), keystone.ARCH_X86, keystone.MODE_32)
+	_, err := keystone.NewKeystone(context.Background(), keystone.ARCH_X86, keystone.MODE_32)
+	if err != nil {
+		panic(err)
+	}
 }
