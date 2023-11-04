@@ -57,8 +57,7 @@ $EMSCRIPTEN/emcmake cmake -B build ${BUILD_FLAGS[*]} -DCMAKE_BUILD_TYPE=Release
 
 cd build
 cmake --build . -j --target $OUTPUT_NAME
-
-echo "Building wasm"
+$EMSCRIPTEN/emcc llvm/lib/lib$OUTPUT_NAME.a -Os --minify 0 ${EMSCRIPTEN_SETTINGS[*]} -o $OUTPUT_NAME.mjs
 
 cp ./keystone.wasm $CURRENT_DIR/keystone/keystone.wasm
-# $EMSCRIPTEN/emcc llvm/lib/lib$OUTPUT_NAME.a -Os --minify 0 ${EMSCRIPTEN_SETTINGS[*]} -o $OUTPUT_NAME.mjs
+
