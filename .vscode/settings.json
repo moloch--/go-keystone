@@ -1,3 +1,18 @@
 {
-  "cSpell.words": ["malloc", "strerror", "wazero"]
+  "cSpell.words": [
+    "FPOINT",
+    "INSN",
+    "INVALIDOPERAND",
+    "malloc",
+    "MASM",
+    "MISSINGFEATURE",
+    "MNEMONICFAIL",
+    "NASM",
+    "NOMEM",
+    "PAREN",
+    "strerror",
+    "SYSTEMZ",
+    "tetratelabs",
+    "wazero"
+  ]
 }
