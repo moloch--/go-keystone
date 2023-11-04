@@ -1,0 +1,3 @@
+[submodule "keystone-engine"]
+	path = keystone-engine
+	url = https://github.com/keystone-engine/keystone.git
