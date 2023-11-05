@@ -38,12 +38,17 @@ EXPORTED_FUNCTIONS=(
   ks_version
   ks_arch_supported
   ks_strerror
+
+  __getTypeName
 )
 EXPORTED_FUNCTIONS=$(echo -n "${EXPORTED_FUNCTIONS[*]}" | jq -cR 'split(" ") | map("_" + .)')
 
 EMSCRIPTEN_SETTINGS=(
-  -s MODULARIZE
-  -s EXPORT_ES6
+  -lembind
+  --no-entry
+  -s STANDALONE_WASM
+  # -s MODULARIZE
+  # -s EXPORT_ES6
   -s WASM_BIGINT
   -s EXPORTED_FUNCTIONS=$EXPORTED_FUNCTIONS
   -s FILESYSTEM=0
