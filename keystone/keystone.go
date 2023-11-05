@@ -23,8 +23,10 @@ import (
 	"context"
 	_ "embed"
 
+	embind "github.com/jerbob92/wazero-emscripten-embind"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
+	"github.com/tetratelabs/wazero/imports/emscripten"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
@@ -83,8 +85,40 @@ func (k *Keystone) Close() {
 
 func NewKeystone(ctx context.Context, arch Architecture, mode Mode) (*Keystone, error) {
 	runtime := wazero.NewRuntime(ctx)
-	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
-	mod, err := runtime.Instantiate(ctx, keystoneWasm)
+	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
+		return nil, err
+	}
+	compiledModule, err := runtime.CompileModule(ctx, keystoneWasm)
+	if err != nil {
+		return nil, err
+	}
+	builder := runtime.NewHostModuleBuilder("env")
+	emscriptenExporter, err := emscripten.NewFunctionExporterForModule(compiledModule)
+	if err != nil {
+		return nil, err
+	}
+	emscriptenExporter.ExportFunctions(builder)
+	engine := embind.CreateEngine(embind.NewConfig())
+	embindExporter := engine.NewFunctionExporterForModule(compiledModule)
+	err = embindExporter.ExportFunctions(builder)
+	if err != nil {
+		return nil, err
+	}
+	_, err = builder.Instantiate(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	moduleConfig := wazero.NewModuleConfig().
+		WithStartFunctions("_initialize").
+		WithName("")
+	ctx = engine.Attach(ctx)
+	mod, err := runtime.InstantiateModule(ctx, compiledModule, moduleConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	err = Attach(engine)
 	if err != nil {
 		return nil, err
 	}
