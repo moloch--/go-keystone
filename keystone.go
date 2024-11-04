@@ -39,7 +39,6 @@ type Engine struct {
 
 // NewEngine is used to create keystone engine above wasm interpreter.
 func NewEngine(arch Arch, mode Mode) (*Engine, error) {
-
 	ctx := context.Background()
 	// prevent generate RWX memory
 	rc := wazero.NewRuntimeConfigInterpreter()
