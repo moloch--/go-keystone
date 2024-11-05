@@ -2,11 +2,10 @@ set -eu
 
 sudo yum install -y htop git gcc cmake
 
-git clone https://github.com/emscripten-core/emsdk.git
+git clone https://github.com/emscripten-core/emsdk
 cd emsdk
 ./emsdk install latest
 ./emsdk activate latest
-source ./emsdk_env.sh
 cd ..
 
 git clone https://github.com/keystone-engine/keystone

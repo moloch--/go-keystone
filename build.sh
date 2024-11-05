@@ -17,7 +17,7 @@ ARCHS=(
 
 BUILD_FLAGS=(
   -D BUILD_LIBS_ONLY=ON
-  -D LLVM_TARGETS_TO_BUILD="$(IFS=';'; echo "${ARCHS[*]}")"
+  -D LLVM_TARGETS_TO_BUILD=$(IFS=';'; echo "${ARCHS[*]}")
 )
 
 EXPORTED_FUNCTIONS=(
@@ -27,8 +27,8 @@ EXPORTED_FUNCTIONS=(
   ks_open
   ks_option
   ks_asm
-  ks_close
   ks_free
+  ks_close
   ks_arch_supported
   ks_errno
   ks_strerror
@@ -37,20 +37,25 @@ EXPORTED_FUNCTIONS=(
 EXPORTED_FUNCTIONS=$(echo -n "${EXPORTED_FUNCTIONS[*]}" | jq -cR 'split(" ") | map("_" + .)')
 
 EMSCRIPTEN_SETTINGS=(
-  -s MODULARIZE=1
-  -s EXPORT_ES6
-  -s WASM_BIGINT
-  -s EXPORTED_FUNCTIONS=$EXPORTED_FUNCTIONS
-  -s FILESYSTEM=0
-  -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,UTF8ToString
   -s EXPORT_NAME=$OUTPUT_NAME
+  -s EXPORTED_FUNCTIONS=$EXPORTED_FUNCTIONS
+  -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,UTF8ToString
+  -s EXPORT_ES6
+  -s MODULARIZE
+  -s WASM_BIGINT
+  -s FILESYSTEM=0
 )
 
+cd emsdk
+source ./emsdk_env.sh
+cd ..
+
 cd keystone
-emcmake cmake -B build "${BUILD_FLAGS[*]}" -DCMAKE_BUILD_TYPE=Release
+emcmake cmake -B build ${BUILD_FLAGS[*]} -DCMAKE_BUILD_TYPE=Release
 
 cd build
 cmake --build . -j --target $OUTPUT_NAME
-emcc llvm/lib/lib$OUTPUT_NAME.a --no-entry -Os --minify 0 "${EMSCRIPTEN_SETTINGS[*]}" -o $OUTPUT_NAME.mjs
+emcc llvm/lib/lib$OUTPUT_NAME.a -Os --minify 0 ${EMSCRIPTEN_SETTINGS[*]} -o $OUTPUT_NAME.mjs
 
-cp ./keystone.wasm "$CURRENT_DIR"/wasm/keystone.wasm
+cp ./keystone.wasm $CURRENT_DIR/wasm/keystone.wasm
+cd ../..
