@@ -26,3 +26,9 @@ go.work.sum
 
 # Ignore JetBrains GoLand
 .idea
+
+# Ignore Emscripten develop environment
+emsdk
+
+# Ignore https://github.com/keystone-engine/keystone
+keystone
