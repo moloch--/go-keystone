@@ -1,7 +1,16 @@
 package keystone
 
-var importModuleName = "a"
+// I have tried to adjust the parameters for compiling,
+// but I still can't solve the confusion of import and
+// export function names, so I have to manually configure
+// the mapping table of function names.
+//
+// Fortunately, the mapping relationship of these function
+// names does not seem to change easily.
 
+var importModule = "a"
+
+// imported functions
 var (
 	___cxa_throw            = "a"
 	___syscall_fstat64      = "g"
@@ -23,4 +32,18 @@ var (
 	_fd_read                = "r"
 	_fd_seek                = "j"
 	_fd_write               = "q"
+)
+
+// exported functions
+var (
+	_malloc      = "F"
+	_free        = "G"
+	_ks_open     = "A"
+	_ks_option   = "C"
+	_ks_asm      = "E"
+	_ks_free     = "D"
+	_ks_close    = "B"
+	_ks_errno    = "x"
+	_ks_strerror = "y"
+	_ks_version  = "w"
 )
