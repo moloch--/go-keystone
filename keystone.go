@@ -1,10 +1,10 @@
 package keystone
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"fmt"
-	"strings"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -23,18 +23,20 @@ type Engine struct {
 	context context.Context
 	runtime wazero.Runtime
 	module  api.Module
+	memory  api.Memory
 
-	malloc api.Function
-	free   api.Function
+	_malloc     api.Function
+	_free       api.Function
+	_ksOpen     api.Function
+	_ksOption   api.Function
+	_ksAsm      api.Function
+	_ksFree     api.Function
+	_ksClose    api.Function
+	_ksErrno    api.Function
+	_ksStrerror api.Function
+	_ksVersion  api.Function
 
-	ksOpen     api.Function
-	ksOption   api.Function
-	ksAsm      api.Function
-	ksFree     api.Function
-	ksClose    api.Function
-	ksErrno    api.Function
-	ksVersion  api.Function
-	ksStrerror api.Function
+	engine uint64
 }
 
 // NewEngine is used to create keystone engine above wasm interpreter.
@@ -64,64 +66,7 @@ func NewEngine(arch Arch, mode Mode) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate module: %s", err)
 	}
-
-	malloc := mod.ExportedFunction("F")
-	rets, err := malloc.Call(ctx, 4096)
-	fmt.Println(rets, err)
-	engineHandle := rets[0]
-
-	ksOpen := mod.ExportedFunction("A")
-
-	fmt.Println(ksOpen == nil)
-
-	rets, err = ksOpen.Call(ctx, uint64(arch), uint64(mode), engineHandle)
-	fmt.Println(rets, err)
-
-	memory := mod.Memory()
-	engineHd, ok := memory.ReadUint32Le(uint32(engineHandle))
-	fmt.Println("read handle", ok)
-	engineHH := uint64(engineHd)
-
-	ksOption := mod.ExportedFunction("C")
-	rets, err = ksOption.Call(ctx, engineHH, uint64(OPT_SYNTAX), uint64(OPT_SYNTAX_INTEL))
-	fmt.Println(rets, err)
-
-	rets, err = malloc.Call(ctx, 4096*1024)
-	fmt.Println(rets, err)
-	asm := rets[0]
-
-	src := strings.Repeat("xor eax, eax\nret\n", 2048) + "\x00"
-	ok = memory.WriteString(uint32(asm), src)
-	fmt.Println("write asm", ok)
-
-	fmt.Println(memory.Read(uint32(engineHandle), 16))
-	fmt.Println(memory.Read(uint32(asm), 16))
-
-	rets, err = malloc.Call(ctx, 1024*1024)
-	fmt.Println(rets, err)
-	inst := rets[0]
-
-	rets, err = malloc.Call(ctx, 4096)
-	fmt.Println(rets, err)
-	instSize := rets[0]
-
-	rets, err = malloc.Call(ctx, 4096)
-	fmt.Println(rets, err)
-	statCount := rets[0]
-
-	ksASM := mod.ExportedFunction("E")
-	rets, err = ksASM.Call(ctx,
-		engineHH, asm, 0, inst, instSize, statCount,
-	)
-	fmt.Println(rets, err)
-
-	fmt.Println(memory.Read(uint32(inst), 16))
-	fmt.Println(memory.Read(uint32(instSize), 16))
-
-	instAddr, ok := memory.ReadUint32Le(uint32(inst))
-	fmt.Println("read inst", ok)
-	fmt.Println(memory.Read(instAddr, 3*2048))
-
+	// initialize keystone engine
 	engine := Engine{
 		arch: arch,
 		mode: mode,
@@ -129,24 +74,32 @@ func NewEngine(arch Arch, mode Mode) (*Engine, error) {
 		context: ctx,
 		runtime: runtime,
 		module:  mod,
+		memory:  mod.Memory(),
 
-		malloc: mod.ExportedFunction("malloc"),
-		free:   mod.ExportedFunction("free"),
+		_malloc: mod.ExportedFunction(_malloc),
+		_free:   mod.ExportedFunction(_free),
 
-		ksOpen:     mod.ExportedFunction("ks_open"),
-		ksAsm:      mod.ExportedFunction("ks_asm"),
-		ksFree:     mod.ExportedFunction("ks_free"),
-		ksClose:    mod.ExportedFunction("ks_close"),
-		ksOption:   mod.ExportedFunction("ks_option"),
-		ksErrno:    mod.ExportedFunction("ks_errno"),
-		ksVersion:  mod.ExportedFunction("ks_version"),
-		ksStrerror: mod.ExportedFunction("ks_strerror"),
+		_ksOpen:     mod.ExportedFunction(_ks_open),
+		_ksOption:   mod.ExportedFunction(_ks_option),
+		_ksAsm:      mod.ExportedFunction(_ks_asm),
+		_ksFree:     mod.ExportedFunction(_ks_free),
+		_ksClose:    mod.ExportedFunction(_ks_close),
+		_ksErrno:    mod.ExportedFunction(_ks_errno),
+		_ksStrerror: mod.ExportedFunction(_ks_version),
+		_ksVersion:  mod.ExportedFunction(_ks_strerror),
 	}
+	err = engine.initialize()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize keystone engine: %s", err)
+	}
+	ok = true
 	return &engine, nil
 }
 
+// processImport is used to create a module with padding
+// functions for call runtime.InstantiateModule.
 func processImport(runtime wazero.Runtime) error {
-	builder := runtime.NewHostModuleBuilder(importModuleName)
+	builder := runtime.NewHostModuleBuilder(importModule)
 	fb := builder.NewFunctionBuilder()
 
 	padFn1 := func(int32, int32, int32) {
@@ -250,10 +203,108 @@ func processImport(runtime wazero.Runtime) error {
 	return err
 }
 
-func (e *Engine) Assemble() error {
+func (e *Engine) malloc(n uint32) uint32 {
+	rets, err := e._malloc.Call(e.context, uint64(n))
+	if err != nil {
+		return 0
+	}
+	return uint32(rets[0])
+}
+
+func (e *Engine) free(ptr uint32) {
+	_, err := e._malloc.Call(e.context, uint64(ptr))
+	if err != nil {
+		panic(fmt.Sprintf("failed to free 0x%X: %s", ptr, err))
+	}
+}
+
+func (e *Engine) initialize() error {
+	enginePtr := e.malloc(4)
+	defer e.free(enginePtr)
+	rets, err := e._ksOpen.Call(e.context,
+		uint64(e.arch), uint64(e.mode), uint64(enginePtr),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to call ks_open: %s", err)
+	}
+	errno := Error(rets[0])
+	if errno != ERR_OK {
+		return fmt.Errorf("failed to open keystone engine: %d", errno)
+	}
+	engine, _ := e.memory.ReadUint32Le(enginePtr)
+	e.engine = uint64(engine)
 	return nil
 }
 
+// Option is used to set engine option.
+func (e *Engine) Option(typ OptionType, val OptionValue) error {
+	rets, err := e._ksOption.Call(e.context,
+		e.engine, uint64(typ), uint64(val),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to call ks_option: %s", err)
+	}
+	errno := Error(rets[0])
+	if errno != ERR_OK {
+		return fmt.Errorf("failed to set keystone option: %d", errno)
+	}
+	return nil
+}
+
+// Assemble is used to assemble input source code.
+func (e *Engine) Assemble(src string, addr uint64) ([]byte, error) {
+	// allocate memory and write source code
+	src += "\x00"
+	srcPtr := e.malloc(uint32(len(src)))
+	defer e.free(srcPtr)
+	e.memory.WriteString(srcPtr, src)
+	// allocate memory for store pointer to output instruction
+	instAddr := e.malloc(4)
+	defer e.free(instAddr)
+	instSize := e.malloc(4)
+	defer e.free(instSize)
+	statCount := e.malloc(4)
+	defer e.free(statCount)
+	// assemble input source code
+	rets, err := e._ksAsm.Call(e.context,
+		e.engine, uint64(srcPtr), addr,
+		uint64(instAddr), uint64(instSize), uint64(statCount),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call ks_asm: %s", err)
+	}
+	errno := Error(rets[0])
+	if errno != ERR_OK {
+		return nil, fmt.Errorf("failed to assemble: %d", errno)
+	}
+	// copy output instruction to host memory
+	instPtr, _ := e.memory.ReadUint32Le(instAddr)
+	instLen, _ := e.memory.ReadUint32Le(instSize)
+	inst, _ := e.memory.Read(instPtr, instLen)
+	inst = bytes.Clone(inst)
+	// free output instruction memory
+	_, err = e._ksFree.Call(e.context, uint64(instPtr))
+	if err != nil {
+		return nil, fmt.Errorf("failed to call ks_free: %s", err)
+	}
+	return inst, nil
+}
+
+// Close is used to close keystone engine and wasm runtime.
 func (e *Engine) Close() error {
-	return e.runtime.Close(e.context)
+	// close keystone engine
+	rets, err := e._ksClose.Call(e.context, e.engine)
+	if err != nil {
+		return fmt.Errorf("failed to call ks_close: %s", err)
+	}
+	errno := Error(rets[0])
+	if errno != ERR_OK {
+		return fmt.Errorf("failed to close keystone engine: %d", errno)
+	}
+	// close wasm runtime
+	err = e.runtime.Close(e.context)
+	if err != nil {
+		return fmt.Errorf("failed to close wasm runtime: %s", err)
+	}
+	return nil
 }
