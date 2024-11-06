@@ -50,11 +50,11 @@ const (
 )
 
 const (
-	OPT_SYNTAX OptionType = 1
+	OPT_SYNTAX       OptionType = 1
+	OPT_SYM_RESOLVER OptionType = 2
 )
 
 const (
-	OPT_SYM_RESOLVER   OptionValue = 2
 	OPT_SYNTAX_INTEL   OptionValue = 1
 	OPT_SYNTAX_ATT     OptionValue = 2
 	OPT_SYNTAX_NASM    OptionValue = 4
