@@ -16,6 +16,7 @@ var _ embed.FS
 //go:embed wasm/keystone.wasm
 var module []byte
 
+// Engine contain wasm runtime and keystone engine.
 type Engine struct {
 	arch Arch
 	mode Mode
@@ -36,7 +37,8 @@ type Engine struct {
 	_ksStrerror api.Function
 	_ksVersion  api.Function
 
-	engine uint64
+	engine  uint64
+	version string
 }
 
 // NewEngine is used to create keystone engine above wasm interpreter.
@@ -85,8 +87,8 @@ func NewEngine(arch Arch, mode Mode) (*Engine, error) {
 		_ksFree:     mod.ExportedFunction(_ks_free),
 		_ksClose:    mod.ExportedFunction(_ks_close),
 		_ksErrno:    mod.ExportedFunction(_ks_errno),
-		_ksStrerror: mod.ExportedFunction(_ks_version),
-		_ksVersion:  mod.ExportedFunction(_ks_strerror),
+		_ksStrerror: mod.ExportedFunction(_ks_strerror),
+		_ksVersion:  mod.ExportedFunction(_ks_version),
 	}
 	err = engine.initialize()
 	if err != nil {
@@ -218,7 +220,37 @@ func (e *Engine) free(ptr uint32) {
 	}
 }
 
+func (e *Engine) errno() uint32 {
+	rets, err := e._ksErrno.Call(e.context, e.engine)
+	if err != nil {
+		panic(fmt.Sprintf("failed to get errno: %s", err))
+	}
+	return uint32(rets[0])
+}
+
+func (e *Engine) errnoStr(errno uint32) string {
+	rets, err := e._ksStrerror.Call(e.context, uint64(errno))
+	if err != nil {
+		panic(fmt.Sprintf("failed to get errno string: %s", err))
+	}
+	s := uint32(rets[0])
+	if s == 0 {
+		return ""
+	}
+	eb := make([]byte, 0, 64)
+	for {
+		b, _ := e.memory.ReadByte(s)
+		if b == 0x00 {
+			break
+		}
+		eb = append(eb, b)
+		s++
+	}
+	return string(eb)
+}
+
 func (e *Engine) initialize() error {
+	// open keystone engine
 	enginePtr := e.malloc(4)
 	defer e.free(enginePtr)
 	rets, err := e._ksOpen.Call(e.context,
@@ -229,14 +261,23 @@ func (e *Engine) initialize() error {
 	}
 	errno := Error(rets[0])
 	if errno != ERR_OK {
-		return fmt.Errorf("failed to open keystone engine: %d", errno)
+		return fmt.Errorf("failed to open keystone engine: %s", e.errnoStr(errno))
 	}
 	engine, _ := e.memory.ReadUint32Le(enginePtr)
 	e.engine = uint64(engine)
+	// get keystone engine version
+	rets, err = e._ksVersion.Call(e.context, 0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to call ks_version: %s", err)
+	}
+	ver := rets[0]
+	marjo := ver >> 8
+	minor := ver & 0xFF
+	e.version = fmt.Sprintf("%d.%d", marjo, minor)
 	return nil
 }
 
-// Option is used to set engine option.
+// Option is used to set the assembly option.
 func (e *Engine) Option(typ OptionType, val OptionValue) error {
 	rets, err := e._ksOption.Call(e.context,
 		e.engine, uint64(typ), uint64(val),
@@ -246,7 +287,7 @@ func (e *Engine) Option(typ OptionType, val OptionValue) error {
 	}
 	errno := Error(rets[0])
 	if errno != ERR_OK {
-		return fmt.Errorf("failed to set keystone option: %d", errno)
+		return fmt.Errorf("failed to set keystone option: %s", e.errnoStr(errno))
 	}
 	return nil
 }
@@ -275,7 +316,7 @@ func (e *Engine) Assemble(src string, addr uint64) ([]byte, error) {
 	}
 	errno := Error(rets[0])
 	if errno != ERR_OK {
-		return nil, fmt.Errorf("failed to assemble: %d", errno)
+		return nil, fmt.Errorf("failed to assemble: %s", e.errnoStr(e.errno()))
 	}
 	// copy output instruction to host memory
 	instPtr, _ := e.memory.ReadUint32Le(instAddr)
@@ -290,6 +331,11 @@ func (e *Engine) Assemble(src string, addr uint64) ([]byte, error) {
 	return inst, nil
 }
 
+// Version is used to get the keystone engine version.
+func (e *Engine) Version() string {
+	return e.version
+}
+
 // Close is used to close keystone engine and wasm runtime.
 func (e *Engine) Close() error {
 	// close keystone engine
@@ -299,7 +345,7 @@ func (e *Engine) Close() error {
 	}
 	errno := Error(rets[0])
 	if errno != ERR_OK {
-		return fmt.Errorf("failed to close keystone engine: %d", errno)
+		return fmt.Errorf("failed to close keystone engine: %s", e.errnoStr(errno))
 	}
 	// close wasm runtime
 	err = e.runtime.Close(e.context)
