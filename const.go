@@ -1,20 +1,28 @@
 package keystone
 
-type Arch uint
-type Mode uint
-type OptionType uint
-type OptionValue uint
-type Error uint32
-
-const (
-	ERR_ASM_INVALID_OPERAND Error = 512
-	ERR_ASM_MISSING_FEATURE Error = 513
-	ERR_ASM_MNEMONIC_FAIL   Error = 514
-)
+type Arch = uint
+type Mode = uint
+type OptionType = uint
+type OptionValue = uint
+type Error = uint32
 
 const (
 	API_MAJOR = 0
 	API_MINOR = 9
+)
+
+const (
+	ARCH_ARM     Arch = 1
+	ARCH_ARM64   Arch = 2
+	ARCH_MIPS    Arch = 3
+	ARCH_X86     Arch = 4
+	ARCH_PPC     Arch = 5
+	ARCH_SPARC   Arch = 6
+	ARCH_SYSTEMZ Arch = 7
+	ARCH_HEXAGON Arch = 8
+	ARCH_EVM     Arch = 9
+	ARCH_RISCV   Arch = 10
+	ARCH_MAX     Arch = 11
 )
 
 const (
@@ -42,20 +50,6 @@ const (
 )
 
 const (
-	ARCH_ARM     Arch = 1
-	ARCH_ARM64   Arch = 2
-	ARCH_MIPS    Arch = 3
-	ARCH_X86     Arch = 4
-	ARCH_PPC     Arch = 5
-	ARCH_SPARC   Arch = 6
-	ARCH_SYSTEMZ Arch = 7
-	ARCH_HEXAGON Arch = 8
-	ARCH_EVM     Arch = 9
-	ARCH_RISCV   Arch = 10
-	ARCH_MAX     Arch = 11
-)
-
-const (
 	OPT_SYNTAX OptionType = 1
 )
 
@@ -70,8 +64,17 @@ const (
 )
 
 const (
-	ERR_ASM                       Error = 128
-	ERR_ASM_ARCH                  Error = 512
+	ERR_ASM_INVALID_OPERAND Error = 512
+	ERR_ASM_MISSING_FEATURE Error = 513
+	ERR_ASM_MNEMONIC_FAIL   Error = 514
+)
+
+const (
+	ERR_ASM      Error = 128
+	ERR_ASM_ARCH Error = 512
+)
+
+const (
 	ERR_OK                        Error = 0
 	ERR_NOMEM                     Error = 1
 	ERR_ARCH                      Error = 2
