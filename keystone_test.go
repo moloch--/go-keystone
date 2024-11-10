@@ -9,19 +9,37 @@ import (
 )
 
 func TestEngine(t *testing.T) {
-	engine, err := NewEngine(ARCH_X86, MODE_32)
-	require.NoError(t, err)
-	err = engine.Option(OPT_SYNTAX, OPT_SYNTAX_INTEL)
-	require.NoError(t, err)
+	t.Run("x86 with 32bit", func(t *testing.T) {
+		engine, err := NewEngine(ARCH_X86, MODE_32)
+		require.NoError(t, err)
+		err = engine.Option(OPT_SYNTAX, OPT_SYNTAX_INTEL)
+		require.NoError(t, err)
 
-	src := strings.Repeat("xor eax, eax\nret\n", 5000)
-	inst, err := engine.Assemble(src, 0)
-	require.NoError(t, err)
-	expected := bytes.Repeat([]byte{0x31, 0xC0, 0xC3}, 5000)
-	require.Equal(t, expected, inst)
+		src := strings.Repeat(".code32\nxor eax, eax\nret\n", 5000)
+		inst, err := engine.Assemble(src, 0)
+		require.NoError(t, err)
+		expected := bytes.Repeat([]byte{0x31, 0xC0, 0xC3}, 5000)
+		require.Equal(t, expected, inst)
 
-	err = engine.Close()
-	require.NoError(t, err)
+		err = engine.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("x86 with 64bit", func(t *testing.T) {
+		engine, err := NewEngine(ARCH_X86, MODE_64)
+		require.NoError(t, err)
+		err = engine.Option(OPT_SYNTAX, OPT_SYNTAX_INTEL)
+		require.NoError(t, err)
+
+		src := strings.Repeat(".code64\nxor rax, rax\nret\n", 5000)
+		inst, err := engine.Assemble(src, 0)
+		require.NoError(t, err)
+		expected := bytes.Repeat([]byte{0x48, 0x31, 0xC0, 0xC3}, 5000)
+		require.Equal(t, expected, inst)
+
+		err = engine.Close()
+		require.NoError(t, err)
+	})
 }
 
 func TestEngine_Option(t *testing.T) {
