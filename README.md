@@ -18,19 +18,18 @@ import (
 )
 
 func main() {
-    engine, err := keystone.NewEngine(keystone.ARCH_X86, keystone.MODE_32)
+    engine, err := keystone.NewEngine(keystone.ARCH_X86, keystone.MODE_64)
     checkError(err)
     defer func() { _ = engine.Close() }()
 
     err = engine.Option(keystone.OPT_SYNTAX, keystone.OPT_SYNTAX_INTEL)
     checkError(err)
 
-    src := "xor eax, eax\nret\n"
+    src := ".code64\nxor rax, rax\nret\n"
     inst, err := engine.Assemble(src, 0)
     checkError(err)
 
-    // [49 192 195]
-    // 0x31 0xC0 0xC3
+    // [0x48, 0x31, 0xC0, 0xC3]
     fmt.Println(inst)
 }
 
