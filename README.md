@@ -4,7 +4,7 @@ WASM based bindings for the [Keystone](https://github.com/keystone-engine/keysto
 Since Keystone is compiled into a wasm module and a pure go-implemented wasm runtime [wazero](https://github.com/tetratelabs/wazero) is used, calling the C program is implemented while retaining cross-compilation.
 ## Usage
 ```bash
-keystone -arch 4 -mode 4 -src hello.asm -out hello.bin
+keystone -arch x86 -mode 32 -src hello.asm -out hello.bin
 ```
 ## Development
 ```go
@@ -25,7 +25,11 @@ func main() {
     err = engine.Option(keystone.OPT_SYNTAX, keystone.OPT_SYNTAX_INTEL)
     checkError(err)
 
-    src := ".code64\nxor rax, rax\nret\n"
+    src := `
+      .code64
+      xor rax, rax
+      ret
+`
     inst, err := engine.Assemble(src, 0)
     checkError(err)
 
