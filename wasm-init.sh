@@ -8,7 +8,7 @@ cd emsdk
 ./emsdk activate latest
 cd ..
 
-git clone https://github.com/keystone-engine/keystone
+git clone https://github.com/For-ACGN/keystone
 
 # when use emscripten, it will cost a lot of memory.
 #
