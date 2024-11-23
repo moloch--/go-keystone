@@ -68,27 +68,58 @@ func TestEngine_Option(t *testing.T) {
 }
 
 func TestEngine_Assemble(t *testing.T) {
-	engine, err := NewEngine(ARCH_X86, MODE_32)
-	require.NoError(t, err)
-
 	t.Run("common", func(t *testing.T) {
+		engine, err := NewEngine(ARCH_X86, MODE_32)
+		require.NoError(t, err)
+
 		src := "xor eax, eax\nret\n"
 		inst, err := engine.Assemble(src, 0)
 		require.NoError(t, err)
 		expected := []byte{0x31, 0xC0, 0xC3}
 		require.Equal(t, expected, inst)
+
+		err = engine.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("fix radix", func(t *testing.T) {
+		engine, err := NewEngine(ARCH_X86, MODE_64)
+		require.NoError(t, err)
+
+		src := ".code64\n"
+		src += "mov rax, 1234\n"
+		src += "mov rax, 0x12\n"
+		src += "mov rax, 0b10\n"
+		src += "mov rax, 0777\n"
+
+		inst, err := engine.Assemble(src, 0)
+		require.NoError(t, err)
+
+		expected := []byte{
+			0x48, 0xC7, 0xC0, 0xD2, 0x04, 0x00, 0x00,
+			0x48, 0xC7, 0xC0, 0x12, 0x00, 0x00, 0x00,
+			0x48, 0xC7, 0xC0, 0x02, 0x00, 0x00, 0x00,
+			0x48, 0xC7, 0xC0, 0xFF, 0x01, 0x00, 0x00,
+		}
+		require.Equal(t, expected, inst)
+
+		err = engine.Close()
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid source", func(t *testing.T) {
+		engine, err := NewEngine(ARCH_X86, MODE_32)
+		require.NoError(t, err)
+
 		src := "invalid\n"
 		inst, err := engine.Assemble(src, 0)
 		errStr := "failed to assemble: Invalid mnemonic (KS_ERR_ASM_MNEMONICFAIL)"
 		require.EqualError(t, err, errStr)
 		require.Nil(t, inst)
-	})
 
-	err = engine.Close()
-	require.NoError(t, err)
+		err = engine.Close()
+		require.NoError(t, err)
+	})
 }
 
 func TestEngine_Version(t *testing.T) {
