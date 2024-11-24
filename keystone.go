@@ -55,18 +55,13 @@ func NewEngine(arch Arch, mode Mode) (*Engine, error) {
 		}
 	}()
 	// load keystone wasm module
-	cm, err := runtime.CompileModule(ctx, module)
-	if err != nil {
-		panic(fmt.Sprintf("failed to load keystone wasm module: %s", err))
-	}
-	err = processImport(runtime)
+	err := processImport(runtime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process wasm module import: %s", err)
 	}
-	mc := wazero.NewModuleConfig()
-	mod, err := runtime.InstantiateModule(ctx, cm, mc)
+	mod, err := runtime.Instantiate(ctx, module)
 	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate module: %s", err)
+		return nil, fmt.Errorf("failed to instantiate wasm module: %s", err)
 	}
 	// initialize keystone engine
 	engine := Engine{
@@ -346,6 +341,11 @@ func (e *Engine) Close() error {
 	errno := Error(rets[0])
 	if errno != ERR_OK {
 		return fmt.Errorf("failed to close keystone engine: %s", e.errnoStr(errno))
+	}
+	// close wasm module
+	err = e.module.Close(e.context)
+	if err != nil {
+		return fmt.Errorf("failed to close wasm module: %s", err)
 	}
 	// close wasm runtime
 	err = e.runtime.Close(e.context)
