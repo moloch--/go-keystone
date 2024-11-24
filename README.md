@@ -25,11 +25,9 @@ func main() {
     err = engine.Option(keystone.OPT_SYNTAX, keystone.OPT_SYNTAX_INTEL)
     checkError(err)
 
-    src := `
-      .code64
-      xor rax, rax
-      ret
-`
+    src := ".code64\n"
+    src += "xor rax, rax\n"
+    src += "ret\n"
     inst, err := engine.Assemble(src, 0)
     checkError(err)
 
