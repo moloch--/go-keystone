@@ -1,10 +1,10 @@
 module github.com/For-ACGN/go-keystone
 
-go 1.22
+go 1.23.0
 
 require (
-	github.com/stretchr/testify v1.10.0
-	github.com/tetratelabs/wazero v1.8.2
+	github.com/stretchr/testify v1.11.1
+	github.com/tetratelabs/wazero v1.9.0
 )
 
 require (
