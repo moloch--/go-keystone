@@ -4,38 +4,30 @@ DIST_DIR ?= dist
 BIN_NAME := keystone
 GO_BIN ?= $(shell if [ -x /opt/homebrew/bin/go ]; then echo /opt/homebrew/bin/go; elif command -v go >/dev/null 2>&1; then command -v go; else echo go; fi)
 
-WASM_BUILD_ROOT := build/wasm
-KEYSTONE_SRC_DIR := $(WASM_BUILD_ROOT)/keystone
-KEYSTONE_PATCH_MARK := $(KEYSTONE_SRC_DIR)/.cmake_patched
-KEYSTONE_BUILD_DIR := $(WASM_BUILD_ROOT)/build
+KEYSTONE_WASM_VERSION ?= v0.0.1
+KEYSTONE_WASM_URL := https://github.com/moloch--/keystone/releases/download/$(KEYSTONE_WASM_VERSION)/keystone.wasm
+
+WASM_PUBLIC_DIR := wasm
+WASM_PUBLIC_MODULE := $(WASM_PUBLIC_DIR)/$(BIN_NAME).wasm
 WASM_EXPORT_DIR := $(DIST_DIR)/wasm
 WASM_MODULE := $(WASM_EXPORT_DIR)/$(BIN_NAME).wasm
-WASM_BUNDLE := $(WASM_EXPORT_DIR)/$(BIN_NAME).mjs
-
-LLVM_TARGETS := AArch64;ARM;X86;Mips;PowerPC;Sparc;SystemZ;Hexagon;RISCV
-EXPORTED_FUNCTIONS := '["_malloc","_free","_ks_open","_ks_option","_ks_asm","_ks_free","_ks_close","_ks_arch_supported","_ks_errno","_ks_strerror","_ks_version"]'
-EMSCRIPTEN_SETTINGS := -s EXPORT_NAME=$(BIN_NAME) \
-	-s EXPORTED_FUNCTIONS=$(EXPORTED_FUNCTIONS) \
-	-s EXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,UTF8ToString \
-	-s EXPORT_ES6=1 \
-	-s MODULARIZE=1 \
-	-s WASM_BIGINT=1 \
-	-s FILESYSTEM=0 \
-	-s DETERMINISTIC=1 \
-	-s ALLOW_MEMORY_GROWTH=1
-
-EMSDK_ENV ?=
-
-LIBATOMIC_LIB ?=
-LIBATOMIC_CANDIDATES := /usr/lib/libatomic.so /usr/lib64/libatomic.so /usr/local/lib/libatomic.so /opt/homebrew/opt/gcc/lib/gcc/current/libatomic.a
-ifeq ($(LIBATOMIC_LIB),)
-LIBATOMIC_LIB := $(firstword $(foreach path,$(LIBATOMIC_CANDIDATES),$(if $(wildcard $(path)),$(path))))
-endif
-
-EM_CACHE_DIR := $(abspath $(WASM_BUILD_ROOT)/cache)
-EM_PORTS_DIR := $(abspath $(WASM_BUILD_ROOT)/ports)
 
 GO_SOURCES := $(shell find cmd -type f -name '*.go') $(shell find . -maxdepth 1 -type f -name '*.go')
+
+GO_PLATFORMS ?= darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 linux/amd64 linux/arm64
+
+define GO_OUTPUT_FILENAME
+$(DIST_DIR)/$(BIN_NAME)_$(subst /,-,$(1))$(if $(filter windows/%,$(1)),.exe,)
+endef
+
+define GO_BUILD_RULE
+$(call GO_OUTPUT_FILENAME,$(1)): $(GO_SOURCES) go.mod go.sum | $(DIST_DIR)
+	GOOS=$(word 1,$(subst /, ,$(1))) GOARCH=$(word 2,$(subst /, ,$(1))) $(GO_BIN) build -v -trimpath -ldflags "-s -w" -o $$@ ./cmd
+endef
+
+$(foreach platform,$(GO_PLATFORMS),$(eval $(call GO_BUILD_RULE,$(platform))))
+
+GO_OUTPUTS := $(foreach platform,$(GO_PLATFORMS),$(call GO_OUTPUT_FILENAME,$(platform)))
 
 .PHONY: all go wasm clean
 
@@ -44,57 +36,26 @@ all: go wasm
 $(DIST_DIR):
 	mkdir -p $@
 
-$(DIST_DIR)/$(BIN_NAME): $(GO_SOURCES) go.mod go.sum | $(DIST_DIR)
-	$(GO_BIN) build -v -trimpath -ldflags "-s -w" -o $@ ./cmd
-
-go: $(DIST_DIR)/$(BIN_NAME)
-
-$(KEYSTONE_SRC_DIR):
-	git clone --depth 1 https://github.com/For-ACGN/keystone $@
-
-$(KEYSTONE_PATCH_MARK): $(KEYSTONE_SRC_DIR)
-	python3 scripts/patch_keystone.py "$(KEYSTONE_SRC_DIR)" "$(KEYSTONE_PATCH_MARK)"
+go: $(GO_OUTPUTS)
 
 $(WASM_EXPORT_DIR):
 	mkdir -p $@
 
-$(WASM_BUNDLE): $(KEYSTONE_PATCH_MARK) | $(WASM_EXPORT_DIR)
+$(WASM_PUBLIC_MODULE):
 	@set -euo pipefail; \
-	if [ -n "$(EMSDK_ENV)" ]; then \
-		if [ ! -f "$(EMSDK_ENV)" ]; then \
-			echo "EMSDK_ENV path '$(EMSDK_ENV)' not found" >&2; \
-			exit 1; \
-		fi; \
-		source "$(EMSDK_ENV)"; \
-	fi; \
-	if [ -n "$(LIBATOMIC_LIB)" ]; then \
-		LIBATOMIC_DIR=$$(dirname "$(LIBATOMIC_LIB)"); \
-		export LIBRARY_PATH="$$LIBATOMIC_DIR$${LIBRARY_PATH:+:$$LIBRARY_PATH}"; \
-		export LDFLAGS="-L$$LIBATOMIC_DIR $${LDFLAGS:-}"; \
-	fi; \
-	export EM_CACHE="$(EM_CACHE_DIR)"; \
-	export EM_PORTS="$(EM_PORTS_DIR)"; \
-	mkdir -p "$(EM_CACHE_DIR)" "$(EM_PORTS_DIR)"; \
-	cmake -E rm -rf $(KEYSTONE_BUILD_DIR); \
-	scripts/sanitize_emcmake.sh cmake -S $(KEYSTONE_SRC_DIR) -B $(KEYSTONE_BUILD_DIR) \
-		-D BUILD_LIBS_ONLY=ON \
-		-D LLVM_TARGETS_TO_BUILD="$(LLVM_TARGETS)" \
-		-D CMAKE_BUILD_TYPE=Release \
-		-D CMAKE_POLICY_VERSION=3.5 \
-		-D CMAKE_POLICY_VERSION_MINIMUM=3.5 \
-		-D CMAKE_OSX_ARCHITECTURES= \
-		-D CMAKE_OSX_DEPLOYMENT_TARGET= \
-		-D CMAKE_C_COMPILER_WORKS=ON \
-		-D CMAKE_CXX_COMPILER_WORKS=ON \
-		-D CMAKE_C_COMPILER=$(abspath scripts/strip_macos_flags_emcc.sh) \
-		-D CMAKE_CXX_COMPILER=$(abspath scripts/strip_macos_flags_emxx.sh); \
-	cmake --build $(KEYSTONE_BUILD_DIR) -j --target $(BIN_NAME); \
-	emcc $(KEYSTONE_BUILD_DIR)/llvm/lib/lib$(BIN_NAME).a -Os --minify 0 $(EMSCRIPTEN_SETTINGS) -o $(WASM_BUNDLE)
+	tmp="$$(mktemp)"; \
+	mkdir -p "$(dir $@)"; \
+	if curl --fail --location --silent --show-error "$(KEYSTONE_WASM_URL)" -o "$$tmp"; then \
+		mv "$$tmp" "$@"; \
+	else \
+		rm -f "$$tmp"; \
+		exit 1; \
+	fi
 
-$(WASM_MODULE): $(WASM_BUNDLE)
-	@true
+$(WASM_MODULE): $(WASM_PUBLIC_MODULE) | $(WASM_EXPORT_DIR)
+	cp -f $< $@
 
-wasm: $(WASM_BUNDLE) $(WASM_MODULE)
+wasm: $(WASM_PUBLIC_MODULE) $(WASM_MODULE)
 
 clean:
-	cmake -E rm -rf $(DIST_DIR) build
+	rm -rf $(DIST_DIR) $(WASM_PUBLIC_DIR)

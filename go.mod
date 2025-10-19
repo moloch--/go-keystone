@@ -1,4 +1,4 @@
-module github.com/For-ACGN/go-keystone
+module github.com/moloch--/go-keystone
 
 go 1.23
 
