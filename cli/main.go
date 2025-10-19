@@ -62,8 +62,8 @@ func newRootCmd() *cobra.Command {
 		Long:  "Assemble source files with the Keystone engine." + supportedOptions,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cmd.SilenceUsage = true
-			if srcPath == "" || output == "" {
-				return errors.New("both --src and --out must be specified")
+			if srcPath == "" {
+				return errors.New("the --src flag must be specified")
 			}
 			return assemble()
 		},
@@ -73,16 +73,12 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&modeS, "mode", "32", "set the target mode")
 	cmd.Flags().StringVar(&syntaxS, "syntax", "intel", "set the assembly syntax")
 	cmd.Flags().Uint64Var(&address, "addr", 0, "set the base address")
-	cmd.Flags().StringVar(&srcPath, "src", "", "set the path to the source file")
-	cmd.Flags().StringVar(&output, "out", "", "set the output file path")
+	cmd.Flags().StringVar(&srcPath, "src", "", "set the source file path or inline assembly content")
+	cmd.Flags().StringVar(&output, "out", "", "set the output file path (stdout if omitted)")
 
 	if err := cmd.MarkFlagRequired("src"); err != nil {
 		panic(err)
 	}
-	if err := cmd.MarkFlagRequired("out"); err != nil {
-		panic(err)
-	}
-
 	completionCmd := &cobra.Command{
 		Use:       "completion [bash|zsh|fish|powershell]",
 		Short:     "Generate shell completion scripts",
@@ -125,9 +121,14 @@ func assemble() error {
 		return err
 	}
 
-	src, err := os.ReadFile(srcPath)
-	if err != nil {
-		return err
+	var src []byte
+	if info, err := os.Stat(srcPath); err == nil && !info.IsDir() {
+		src, err = os.ReadFile(srcPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		src = []byte(srcPath)
 	}
 
 	inst, err := engine.Assemble(string(src), address)
@@ -135,9 +136,10 @@ func assemble() error {
 		return err
 	}
 
-	if err := os.WriteFile(output, inst, 0644); err != nil {
+	if output == "" {
+		_, err = os.Stdout.Write(inst)
 		return err
 	}
 
-	return nil
+	return os.WriteFile(output, inst, 0644)
 }
