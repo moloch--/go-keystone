@@ -76,6 +76,22 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&srcPath, "src", "", "set the source file path or inline assembly content")
 	cmd.Flags().StringVar(&output, "out", "", "set the output file path (stdout if omitted)")
 
+	if err := cmd.RegisterFlagCompletionFunc("arch", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return keystone.ArchOptions(), cobra.ShellCompDirectiveNoFileComp
+	}); err != nil {
+		panic(err)
+	}
+	if err := cmd.RegisterFlagCompletionFunc("mode", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return keystone.ModeOptions(), cobra.ShellCompDirectiveNoFileComp
+	}); err != nil {
+		panic(err)
+	}
+	if err := cmd.RegisterFlagCompletionFunc("syntax", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return keystone.SyntaxOptions(), cobra.ShellCompDirectiveNoFileComp
+	}); err != nil {
+		panic(err)
+	}
+
 	if err := cmd.MarkFlagRequired("src"); err != nil {
 		panic(err)
 	}

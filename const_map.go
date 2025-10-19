@@ -1,6 +1,7 @@
 package keystone
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -64,4 +65,34 @@ func StringToMode(mode string) Mode {
 // StringToSyntax is used to convert string to syntax.
 func StringToSyntax(syntax string) OptionValue {
 	return syntaxM[strings.ToLower(syntax)]
+}
+
+// ArchOptions returns the list of supported architecture keywords.
+func ArchOptions() []string {
+	keys := make([]string, 0, len(archM))
+	for key := range archM {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// ModeOptions returns the list of supported mode keywords.
+func ModeOptions() []string {
+	keys := make([]string, 0, len(modeM))
+	for key := range modeM {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// SyntaxOptions returns the list of supported syntax keywords.
+func SyntaxOptions() []string {
+	keys := make([]string, 0, len(syntaxM))
+	for key := range syntaxM {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
