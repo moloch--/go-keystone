@@ -52,8 +52,3 @@ jobs:
           fi
           go build -trimpath -ldflags "-s -w" -o dist/go/${GOOS}-${GOARCH}/${BIN_NAME} ./cli
           
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: keystone-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/go/${{ matrix.goos }}-${{ matrix.goarch }}/keystone${{ matrix.goos == 'windows' && '.exe' || '' }}
