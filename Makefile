@@ -12,7 +12,7 @@ WASM_PUBLIC_MODULE := $(WASM_PUBLIC_DIR)/$(BIN_NAME).wasm
 WASM_EXPORT_DIR := $(DIST_DIR)/wasm
 WASM_MODULE := $(WASM_EXPORT_DIR)/$(BIN_NAME).wasm
 
-GO_SOURCES := $(shell find cmd -type f -name '*.go') $(shell find . -maxdepth 1 -type f -name '*.go')
+GO_SOURCES := $(shell find cli -type f -name '*.go') $(shell find . -maxdepth 1 -type f -name '*.go')
 
 GO_PLATFORMS ?= darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 linux/amd64 linux/arm64
 
@@ -22,7 +22,7 @@ endef
 
 define GO_BUILD_RULE
 $(call GO_OUTPUT_FILENAME,$(1)): $(GO_SOURCES) go.mod go.sum | $(DIST_DIR)
-	GOOS=$(word 1,$(subst /, ,$(1))) GOARCH=$(word 2,$(subst /, ,$(1))) $(GO_BIN) build -v -trimpath -ldflags "-s -w" -o $$@ ./cmd
+	GOOS=$(word 1,$(subst /, ,$(1))) GOARCH=$(word 2,$(subst /, ,$(1))) $(GO_BIN) build -v -trimpath -ldflags "-s -w" -o $$@ ./cli
 endef
 
 $(foreach platform,$(GO_PLATFORMS),$(eval $(call GO_BUILD_RULE,$(platform))))

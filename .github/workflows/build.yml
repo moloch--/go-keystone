@@ -23,7 +23,7 @@ jobs:
             goarch: arm64
           - goos: windows
             goarch: amd64
-            
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,7 +50,8 @@ jobs:
           if [ "${GOOS}" = "windows" ]; then
             BIN_NAME=keystone.exe
           fi
-          go build -trimpath -ldflags "-s -w" -o dist/go/${GOOS}-${GOARCH}/${BIN_NAME} ./cmd
+          go build -trimpath -ldflags "-s -w" -o dist/go/${GOOS}-${GOARCH}/${BIN_NAME} ./cli
+          
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
