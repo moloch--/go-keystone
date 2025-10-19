@@ -1,0 +1,75 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake jq
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v1
+        with:
+          version: latest
+      - name: Build wasm bundle
+        run: make wasm
+      - name: Upload wasm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-dist
+          path: dist/wasm/*
+
+  go:
+    name: Build Go Binaries
+    needs: wasm
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-dist
+          path: dist/wasm
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p dist/go/${GOOS}-${GOARCH}
+          BIN_NAME=keystone
+          if [ "${GOOS}" = "windows" ]; then
+            BIN_NAME=keystone.exe
+          fi
+          go build -trimpath -ldflags "-s -w" -o dist/go/${GOOS}-${GOARCH}/${BIN_NAME} ./cmd
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keystone-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/go/${{ matrix.goos }}-${{ matrix.goarch }}/keystone${{ matrix.goos == 'windows' && '.exe' || '' }}

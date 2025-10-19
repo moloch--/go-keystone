@@ -32,3 +32,7 @@ emsdk
 
 # Ignore https://github.com/keystone-engine/keystone
 keystone
+
+# Build artifacts
+dist/
+build/
