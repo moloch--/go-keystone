@@ -24,6 +24,9 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Run unit tests
+        run: go test ./...
+
       - name: Download wasm module
         run: make wasm
 
