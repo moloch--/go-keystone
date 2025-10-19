@@ -3,33 +3,12 @@ name: Build
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  wasm:
-    name: Build WASM
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake jq
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v1
-        with:
-          version: latest
-      - name: Build wasm bundle
-        run: make wasm
-      - name: Upload wasm artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: wasm-dist
-          path: dist/wasm/*
-
   go:
     name: Build Go Binaries
-    needs: wasm
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -47,11 +26,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Download wasm artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: wasm-dist
-          path: dist/wasm
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
