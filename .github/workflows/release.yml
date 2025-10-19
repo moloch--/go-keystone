@@ -31,7 +31,7 @@ jobs:
         run: make wasm
 
       - name: Build Go binaries
-        run: make go
+        run: make all
 
       - name: Create GitHub release
         env:
@@ -39,7 +39,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          mapfile -t files < <(find dist -type f -print)
+          mapfile -t files < <(find dist -type f -not -path '*/wasm/*' -print)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No build artifacts found under dist/" >&2
             exit 1
